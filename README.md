@@ -21,7 +21,7 @@ Before running the script, ensure you have the following ready:
 1. PowerShell 7.x (Required)
 This script uses modern PowerShell features. Standard Windows PowerShell 5.1 is not supported.
 
-Download PowerShell 7
+* [Download PowerShell 7](https://www.google.com/search?q=https://github.com/PowerShell/PowerShell%23get-powershell)
 
 2. Rubrik Security Cloud SDKOpen PowerShell 7 and run:
 

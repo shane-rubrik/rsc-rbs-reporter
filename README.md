@@ -27,7 +27,7 @@ This script uses modern PowerShell features. Standard Windows PowerShell 5.1 is 
 
 Open PowerShell 7 and run:
 
-`Install-Module -Name RubrikSecurityCloud -Scope CurrentUser -AllowClobber`
+```Install-Module -Name RubrikSecurityCloud -Scope CurrentUser -AllowClobber```
 
 **3. RSC Service Account***
 
@@ -46,7 +46,7 @@ To keep your environment secure, **you must encrypt the key** so it only works o
 
 Run this command in PowerShell to create a "Protected" version of your key:
 
-`Protect-RscServiceAccountFile  -InputFilePath "C:\Downloads\original-key.json" -OutputFilePath "C:\scripts\rsc-creds-encrypted.json"`
+```Protect-RscServiceAccountFile  -InputFilePath "C:\Downloads\original-key.json" -OutputFilePath "C:\scripts\rsc-creds-encrypted.json"```
 
 **Step 2: Prepare the Script**
 
@@ -56,7 +56,7 @@ Download Get-RscHostRbsVersion.ps1 from this repository and save it to your scri
 
 Run the script by pointing it to your **encrypted** JSON file and a folder where you want the reports saved:
 
-`.\Get-RscHostRbsVersion.ps1 -ServiceAccountFile "C:\scripts\rsc-creds-encrypted.json" -ExportPath "C:\Reports"`
+```.\Get-RscHostRbsVersion.ps1 -ServiceAccountFile "C:\scripts\rsc-creds-encrypted.json" -ExportPath "C:\Reports"```
 
 **Understanding the "Manual Validation" Column**
 

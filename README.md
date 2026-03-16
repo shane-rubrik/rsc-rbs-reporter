@@ -21,7 +21,7 @@ Before running the script, ensure you have the following ready:
 1. PowerShell 7.x (Required)
 This script uses modern PowerShell features. Standard Windows PowerShell 5.1 is not supported.
 
-* [Download PowerShell 7](https://www.google.com/search?q=https://github.com/PowerShell/PowerShell%23get-powershell)
+* [Download PowerShell 7](https://github.com/PowerShell/PowerShell)
 
 2. Rubrik Security Cloud SDKOpen PowerShell 7 and run:
 
@@ -40,11 +40,11 @@ You need a "Service Account" to talk to Rubrik via the API:
 
 Step 1: Encrypt your JSON Key ⚠️
 
-To keep your environment secure, you must encrypt the key so it only works on your specific machine.
+To keep your environment secure, *you must encrypt the key* so it only works on your specific machine.
 
 Run this command in PowerShell to create a "Protected" version of your key:
 
-`Protect-RscServiceAccountFile -Path "C:\Downloads\original-key.json" -OutPath "C:\scripts\rsc-creds-encrypted.json"`
+`Protect-RscServiceAccountFile  -InputFilePath "C:\Downloads\original-key.json" -OutputFilePath "C:\scripts\rsc-creds-encrypted.json"`
 
 Step 2: Prepare the Script
 
@@ -60,9 +60,9 @@ Understanding the "Manual Validation" Column
 
 The script is smart. It will automatically populate the "Manual Validation Recommended" column if it detects any of the following:
 
-Outdated Version: The host is reporting an older 8.x version.
-Status Unknown: The host is connected but the upgrade state is unclear.
-Missing Metadata: The version cannot be determined via the API.
+* *Outdated Version*: The host is reporting an older 8.x version.
+* *Status Unknown*: The host is connected but the upgrade state is unclear.
+* *Missing Metadata*: The version cannot be determined via the API.
 
 📄 LicenseThis project is licensed under the MIT License. See the LICENSE file for the full text.
 

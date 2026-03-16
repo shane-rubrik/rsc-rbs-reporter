@@ -4,15 +4,15 @@ This PowerShell tool provides a centralized report of Rubrik Backup Service (RBS
 
 🚀 Features
 
-Unified View: Consolidation of Windows and Linux/Unix physical hosts in one report.
+* *Unified View*: Consolidation of Windows and Linux/Unix physical hosts in one report.
 
-Outlier Detection: Automatically flags hosts with version 8.x, Unknown versions, or Unknown upgrade statuses.
+* *Outlier Detection*: Automatically flags hosts with version 8.x, Unknown versions, or Unknown upgrade statuses.
 
-Interactive HTML: Generates a professional, sortable HTML report for easy sharing.
+* *Interactive HTML*: Generates a professional, sortable HTML report for easy sharing.
 
-CSV Support: Exports data with full execution metadata for audit trails.
+* *CSV Support*: Exports data with full execution metadata for audit trails.
 
-Secure: Built to work with encrypted Service Account keys—no plain-text passwords required.
+* *Secure*: Built to work with encrypted Service Account keys—no plain-text passwords required.
 
 📋 Prerequisites
 

@@ -5,21 +5,21 @@
 .DESCRIPTION
     This script performs the following actions:
     1. Connects to RSC using a Service Account file.
-    2. Identifies the active RSC Instance URL via the SDK configuration.
+    2. Identifies the active RSC Instance URL by parsing the Service Account file (JSON or CliXml).
     3. Queries the GraphQL API for Windows and Linux hosts.
     4. Decodes metadata and OS Name strings to identify the active RBS Agent version.
     5. Flags outliers (8.x versions, Unknown versions, or Unknown Upgrade Status) for Manual Validation.
     6. Exports the report to CSV and HTML with an interactive sortable table.
 
 .PARAMETER ServiceAccountFile
-    The full path to your RSC Service Account JSON file.
+    The full path to your RSC Service Account JSON/XML file.
 
 .PARAMETER ExportPath
     The directory where you want to save the CSV/HTML reports.
 #>
 
 param (
-    [Parameter(Mandatory=$true, HelpMessage="Path to the encrypted RSC Service Account JSON file")]
+    [Parameter(Mandatory=$true, HelpMessage="Path to the encrypted RSC Service Account file")]
     [ValidateNotNullOrEmpty()]
     [string]$ServiceAccountFile,
 
@@ -38,11 +38,28 @@ Import-Module RubrikSecurityCloud
 Write-Host "Connecting to Rubrik Security Cloud..." -ForegroundColor Cyan
 Connect-Rsc -ServiceAccountFile $ServiceAccountFile
 
-# Capture the exact URL being used from the active SDK configuration
-Write-Host "Fetching RSC Instance URL..." -ForegroundColor Gray
-$rscConfig = Get-RscConfig
-$rscInstanceUrl = $rscConfig.Endpoint
+# Robust URL Detection: Pulling directly from the Service Account file source
+Write-Host "Extracting RSC Instance URL from Service Account file..." -ForegroundColor Gray
+$rscInstanceUrl = "Unknown"
 
+try {
+    # Try importing as CliXml (PowerShell Encrypted format)
+    $saData = Import-Clixml -Path $ServiceAccountFile -ErrorAction SilentlyContinue
+    if ($null -eq $saData) {
+        # Fallback to standard JSON if CliXml fails
+        $saData = Get-Content $ServiceAccountFile | ConvertFrom-Json -ErrorAction SilentlyContinue
+    }
+    
+    if ($saData.access_token_uri) {
+        # Extract the base URL from the full token URI
+        $rscInstanceUrl = $saData.access_token_uri -replace '/api/client_token', ''
+    }
+} catch {
+    # Final fallback to SDK config if file parsing fails
+    $rscInstanceUrl = (Get-RscConfig).Endpoint
+}
+
+# If everything fails, default to gaia-next
 if ([string]::IsNullOrWhiteSpace($rscInstanceUrl)) {
     $rscInstanceUrl = "https://rubrik-gaia-next.my.rubrik.com/" 
 }
@@ -57,12 +74,10 @@ foreach ($root in $targetRoots) {
     $query = New-RscQuery -GqlQuery physicalHosts
     $query.Var.hostRoot = $root
 
-    # InitialProperties bypasses strict .NET type casting issues in the SDK
     $nodeType = Get-RscType -Name PhysicalHost -InitialProperties @(
         "id", "name", "osType", "osName", "rbaPackageUpgradeInfo", "rbsUpgradeStatus", "clusterRelation"
     )
     
-    # Hydrate sub-objects for Cluster and Connection metadata
     $nodeType.Cluster = Get-RscType -Name Cluster -InitialProperties "name"
     $nodeType.ConnectionStatus = Get-RscType -Name HostConnectionStatus -InitialProperties "timestampMillis"
 
@@ -75,22 +90,18 @@ foreach ($root in $targetRoots) {
 $hostList = foreach ($node in $allNodes) {
     $foundVer = "Unknown"
     
-    # Path A: Extract version from OS Name (Most accurate for active service)
     if ($node.OsName -match '\(([\d\.p\-]+)') {
         $foundVer = $Matches[1]
     }
-    # Path B: Fallback to RBA Package Info JSON blob
     elseif (-not [string]::IsNullOrWhiteSpace($node.RbaPackageUpgradeInfo)) {
         try {
             $rbaInfo = $node.RbaPackageUpgradeInfo | ConvertFrom-Json
             if ($null -ne $rbaInfo.rbaPackageVersionOpt) {
-                # Truncate build hashes and bazel metadata
                 $foundVer = ($rbaInfo.rbaPackageVersionOpt -split '[\+\-]bazel')[0]
             }
         } catch { }
     }
 
-    # Final Clean-up: Truncate long version strings (AIX/Linux dots) to version core
     if ($foundVer -match '^(\d+\.\d+\.\d+(\.p\d+)?)\.') {
         $foundVer = $Matches[1]
     }
@@ -113,7 +124,6 @@ $connectedHosts = $hostList | Where-Object {
     $_.OSType -match $targetOsRegex -and $_.Connectivity -eq "Connected" 
 }
 
-# Identify outliers for manual validation marking
 $finalReport = foreach ($entry in $connectedHosts) {
     $validationText = ""
     

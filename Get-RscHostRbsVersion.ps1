@@ -29,8 +29,7 @@ param (
 
 # --- 1. PRE-FLIGHT CHECKS ---
 if (-not (Get-Module -ListAvailable -Name RubrikSecurityCloud)) {
-    Write-Error "The RubrikSecurityCloud module is missing. Please run: Install-Module RubrikSecurityCloud"
-    exit
+    throw "The RubrikSecurityCloud module is missing. Please run: Install-Module RubrikSecurityCloud"
 }
 Import-Module RubrikSecurityCloud
 
@@ -59,9 +58,8 @@ try {
     $rscInstanceUrl = (Get-RscConfig).Endpoint
 }
 
-# If everything fails, default to gaia-next
 if ([string]::IsNullOrWhiteSpace($rscInstanceUrl)) {
-    $rscInstanceUrl = "https://rubrik-gaia-next.my.rubrik.com/" 
+    $rscInstanceUrl = (Get-RscConfig).Endpoint
 }
 
 # --- 3. DATA COLLECTION ---
@@ -82,15 +80,18 @@ foreach ($root in $targetRoots) {
     $nodeType.ConnectionStatus = Get-RscType -Name HostConnectionStatus -InitialProperties "timestampMillis"
 
     $query.Field.Nodes = @($nodeType)
-    $response = $query.Invoke()
-    if ($null -ne $response.Nodes) { $allNodes += $response.Nodes }
+    do {
+        $response = $query.Invoke()
+        if ($null -ne $response.Nodes) { $allNodes += $response.Nodes }
+        $query.Var.after = $response.PageInfo.EndCursor
+    } while ($response.PageInfo.HasNextPage)
 }
 
 # --- 4. DATA PROCESSING ---
 $hostList = foreach ($node in $allNodes) {
     $foundVer = "Unknown"
     
-    if ($node.OsName -match '\(([\d\.p\-]+)') {
+    if ($node.OsName -match '\(([\d\.p\-]+)\)') {
         $foundVer = $Matches[1]
     }
     elseif (-not [string]::IsNullOrWhiteSpace($node.RbaPackageUpgradeInfo)) {
@@ -157,14 +158,10 @@ if (-not [string]::IsNullOrWhiteSpace($ExportPath)) {
     $htmlFile = Join-Path $ExportPath "Rubrik_RBS_Report_$timestamp.html"
 
     # Export CSV
-    $headerData = "Report Date: $runtime`nRSC Instance URL: $rscInstanceUrl`nService Account: $saAccount`n"
-    $headerData | Set-Content $csvFile
-    $finalReport | ConvertTo-Csv -NoTypeInformation | Select-Object -Skip 1 | Add-Content $csvFile
+    $finalReport | Sort-Object OSType, HostName | Export-Csv -Path $csvFile -NoTypeInformation
     
     # Build Interactive Sortable HTML Report
-    $htmlHead = @"
-<html>
-<head>
+    $htmlHeadContent = @"
 <title>Rubrik RBS Report</title>
 <style>
     body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin: 30px; background-color: #f4f7f9; }
@@ -184,7 +181,6 @@ if (-not [string]::IsNullOrWhiteSpace($ExportPath)) {
 </style>
 <script>
     function sortTable(n) {
-        if (n === 4) return;
         var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
         table = document.querySelector("table");
         switching = true;
@@ -223,7 +219,7 @@ if (-not [string]::IsNullOrWhiteSpace($ExportPath)) {
     document.addEventListener("DOMContentLoaded", function() {
         let headers = document.querySelectorAll("th");
         headers.forEach((header, index) => {
-            if (index === 4) {
+            if (header.textContent.trim() === "Connectivity") {
                 header.classList.add("no-sort");
             } else {
                 header.addEventListener("click", () => sortTable(index));
@@ -231,8 +227,9 @@ if (-not [string]::IsNullOrWhiteSpace($ExportPath)) {
         });
     });
 </script>
-</head>
-<body>
+"@
+
+    $htmlPreContent = @"
     <h2>Rubrik RBS Agent Version Report</h2>
     <div class='meta-box'>
         <div class='meta-item'><strong>RSC Instance URL:</strong> <a href='$rscInstanceUrl'>$rscInstanceUrl</a></div>
@@ -241,10 +238,10 @@ if (-not [string]::IsNullOrWhiteSpace($ExportPath)) {
         <div class='meta-item' style='margin-top:10px; font-style:italic; color:#005a9c;'>Note: Click column headers to sort (Connectivity sorting disabled).</div>
     </div>
 "@
-    
-    $finalReport | Sort-Object OSType, HostName | 
-        Select-Object HostName, OSType, AgentVersion, RBSUpgradeStatus, Connectivity, Cluster, "Manual Validation Recommended" | 
-        ConvertTo-Html -Head $htmlHead | Out-File $htmlFile
+
+    $finalReport | Sort-Object OSType, HostName |
+        Select-Object HostName, OSType, AgentVersion, RBSUpgradeStatus, Connectivity, Cluster, "Manual Validation Recommended" |
+        ConvertTo-Html -Head $htmlHeadContent -PreContent $htmlPreContent | Out-File $htmlFile
     
     Write-Host " - CSV Exported: $(Split-Path $csvFile -Leaf)" -ForegroundColor Gray
     Write-Host " - HTML Exported: $(Split-Path $htmlFile -Leaf)" -ForegroundColor Gray
